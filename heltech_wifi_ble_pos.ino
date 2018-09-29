@@ -33,16 +33,6 @@
 static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST);
 #endif
 
-/*
-
-#define SERIAL_BAUD       57600
-
-#define WIFI_DELAY        500
-
-
-#define MAX_CONNECT_TIME  30000
-*/
-
 boolean send_always = true;
 
 #define bibernode2
@@ -76,8 +66,10 @@ static osjob_t sendjob;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
-unsigned TX_INTERVAL = 6;
-// Schedule TX every this many seconds (might become longer due to duty
+
+const byte ONE_MINUTE = 60;
+unsigned TX_INTERVAL = 1;
+// Schedule TX every this many minutes (might become longer due to duty
 // cycle limitations).
 
 
@@ -92,16 +84,25 @@ const lmic_pinmap lmic_pins = {
 const char *DEVICE_NAME = "Gigaset G-tag";
 //const char * SERVICE_DATA_UUID = "0000feaa-0000-1000-8000-00805f9b34fb";
 //must be executed in root
-//hciconfig hci0 up 
+//hciconfig hci0 up
 //hciconfig hci0 leadv 3
 //hcitool -i hci0 cmd 0x08 0x0008 1a 02 01 06 03 03 aa fe 12 16 aa fe 10 00 01 72 61 73 70 62 65 72 72 79 70 69 01 00 00 00 00 00
-const int scanTime = 30; 
+const int scanTime = 30;
 
 #define WIFI_POS  0
 #define  BLE_POS  WIFI_POS + 1
 
 int mode = BLE_POS;
 
+
+#define LCD_OFF  0
+#define LCD_ON  LCD_OFF + 1
+
+int show_lcd_msg = LCD_ON;
+
+
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     /**
@@ -114,6 +115,29 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     }
 };
 
+
+void set_lcd (byte lcd_stat)
+{
+  show_lcd_msg = lcd_stat;
+
+  if (show_lcd_msg == LCD_OFF)
+  {
+
+    u8x8.setPowerSave(1);
+  }
+  else
+  {
+
+    u8x8.setPowerSave(0);
+    /*
+      u8x8.setFont(u8x8_font_amstrad_cpc_extended_r);
+
+      u8x8.drawString(0, 1, "BI THINGSFinder");
+
+      u8x8.drawString(0, 5, "Ready");
+    */
+  }
+}
 
 void  set_transmit(byte strength)
 {
@@ -175,24 +199,30 @@ void do_send(osjob_t* j) {
   if (LMIC.opmode & OP_TXRXPEND) {
     Serial.println(F("OP_TXRXPEND, not sending"));
   } else {
-    
+
     int l = 0;
 
     if (mode == BLE_POS)
     {
-      #ifdef LCD_DISP
-      u8x8.drawString(0, 2, "Scan BLEs ");
-      #endif
+#ifdef LCD_DISP
+      if (show_lcd_msg)
+      {
+        u8x8.drawString(0, 3, "Scan BLEs ");
+      }
+#endif
       l = do_ble_scanAndsort();
     }
     else
     {
       if (mode == WIFI_POS)
       {
-        #ifdef LCD_DISP
-            u8x8.drawString(0, 2, "Scan Wifis");
-            #endif
-       l = do_wifi_scanAndSort();
+#ifdef LCD_DISP
+        if (show_lcd_msg)
+        {
+          u8x8.drawString(0, 3, "Scan Wifis");
+        }
+#endif
+        l = do_wifi_scanAndSort();
       }
     }
 
@@ -200,9 +230,12 @@ void do_send(osjob_t* j) {
     if (l > 0)
     {
 
-      #ifdef LCD_DISP
-      u8x8.drawString(0, 2, "Send Data");
-      #endif
+#ifdef LCD_DISP
+      if (show_lcd_msg)
+      {
+        u8x8.drawString(0, 3, "Send Data");
+      }
+#endif
 
       LMIC_setTxData2(66, (xref2u1_t)mydata, MAX_MAC * 7, 0);
 
@@ -213,9 +246,12 @@ void do_send(osjob_t* j) {
       if (send_always)
         LMIC_setTxData2(66, (unsigned char *)"hello", sizeof("hello"), 0); //Sent packet to TTN
       // Schedule next transmission
-      #ifdef LCD_DISP
-      u8x8.drawString(0, 2, "NO Device...");
-      #endif
+#ifdef LCD_DISP
+      if (show_lcd_msg)
+      {
+        u8x8.drawString(0, 3, "NO Device...");
+      }
+#endif
       os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(1), do_send);
     }
   }
@@ -242,13 +278,13 @@ int do_ble_scanAndsort()
     Serial.println (foundDevices.getDevice(i).getName().c_str());
     if (foundDevices.getDevice(i).getName() == DEVICE_NAME)
       real_devs ++;
-    
+
     //Serial.println (foundDevices.getDevice(i).getServiceDataUUID().toString().c_str() );
     /*
-    if ( foundDevices.getDevice(i).getServiceDataUUID().toString() == SERVICE_DATA_UUID )
-    {
+      if ( foundDevices.getDevice(i).getServiceDataUUID().toString() == SERVICE_DATA_UUID )
+      {
       real_devs ++;
-    }
+      }
     */
   }
 
@@ -282,8 +318,8 @@ int do_ble_scanAndsort()
     for (int i = 0; i < n; i++)
     {
       if ((foundDevices.getDevice(indices[i]).getName() == DEVICE_NAME) && (act_cnt < MAX_MAC))
-      
-      //if ((foundDevices.getDevice(i).getServiceDataUUID().toString() == SERVICE_DATA_UUID) && (act_cnt < MAX_MAC))
+
+        //if ((foundDevices.getDevice(i).getServiceDataUUID().toString() == SERVICE_DATA_UUID) && (act_cnt < MAX_MAC))
       {
         Serial.println("****");
         Serial.println(foundDevices.getDevice(indices[i]).getName().c_str());
@@ -307,9 +343,12 @@ int do_ble_scanAndsort()
         mydata[6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
         act_cnt ++;
       }
-      #ifdef LCD_DISP
-      u8x8.drawString(0, 2, "SSEND");
-      #endif
+#ifdef LCD_DISP
+      if (show_lcd_msg)
+      {
+        u8x8.drawString(0, 3, "  SEND");
+      }
+#endif
     }
 
   }
@@ -373,9 +412,12 @@ int do_wifi_scanAndSort() {
       mydata[6 + 7 * i] = WiFi.RSSI(indices[i]);
       Serial.print(WiFi.RSSI(indices[i]));
       Serial.println();
-      #ifdef LCD_DISP
-      u8x8.drawString(0, 2, "SSEND");
-      #endif
+#ifdef LCD_DISP
+      if (show_lcd_msg)
+      {
+        u8x8.drawString(0, 3, "  SEND");
+      }
+#endif
     }
 
   }
@@ -431,32 +473,36 @@ void onEvent(ev_t ev) {
         switch (LMIC.dataLen)
         {
           case 1:
-            set_mode(LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg]);
             break;
 
           case 2:
-            set_mode(LMIC.frame[LMIC.dataBeg]);
-            set_transmit(LMIC.frame[LMIC.dataBeg + 1]);
+            set_lcd (LMIC.frame[LMIC.dataBeg]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
+
             break;
 
           case 3:
-            set_mode(LMIC.frame[LMIC.dataBeg]);
-            set_transmit(LMIC.frame[LMIC.dataBeg + 1]);
-            set_sleep(LMIC.frame[LMIC.dataBeg + 2]);
+            set_lcd (LMIC.frame[LMIC.dataBeg]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
+            set_transmit(LMIC.frame[LMIC.dataBeg + 2]);
+
             break;
 
           case 4:
-            set_mode(LMIC.frame[LMIC.dataBeg]);
-            set_transmit(LMIC.frame[LMIC.dataBeg + 1]);
-            set_sleep(LMIC.frame[LMIC.dataBeg + 2]);
-            set_sendallways(LMIC.frame[LMIC.dataBeg + 3]);
+            set_lcd (LMIC.frame[LMIC.dataBeg]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
+            set_transmit(LMIC.frame[LMIC.dataBeg + 2]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
+
             break;
 
           case 5:
-            set_mode(LMIC.frame[LMIC.dataBeg]);
-            set_transmit(LMIC.frame[LMIC.dataBeg + 1]);
-            set_sleep(LMIC.frame[LMIC.dataBeg + 2]);
-            set_sendallways(LMIC.frame[LMIC.dataBeg + 3]);
+            set_lcd (LMIC.frame[LMIC.dataBeg]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
+            set_transmit(LMIC.frame[LMIC.dataBeg + 2]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
+            set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
 
             break;
 
@@ -467,7 +513,7 @@ void onEvent(ev_t ev) {
 
       // Schedule next transmission
       // digitalWrite(LED_BUILTIN, HIGH);
-      os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL), do_send);
+      os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL*ONE_MINUTE), do_send);
       break;
     case EV_LOST_TSYNC:
       Serial.println(F("EV_LOST_TSYNC"));
@@ -500,15 +546,34 @@ void setup() {
   Serial.println(F("Starting"));
 
   // set up the display
-  #ifdef LCD_DISP
-  u8x8.begin();
-  u8x8.setPowerSave(0);
-  u8x8.setFont(u8x8_font_amstrad_cpc_extended_r);
-  u8x8.drawString(0, 0, "BI THINGSFinder");
+#ifdef LCD_DISP
+  if (show_lcd_msg)
+  {
+    u8x8.begin();
+    u8x8.setPowerSave(0);
+    u8x8.setFont(u8x8_font_amstrad_cpc_extended_r);
+    u8x8.drawString(0, 1, "BI THINGSFinder");
 
-  u8x8.drawString(0, 4, "Ready");
-  #endif
- 
+    u8x8.drawString(0, 5, "Ready");
+  }
+#endif
+
+/*
+
+  BLEDevice::init("BI_ThingsFinder");
+  BLEServer *pServer = BLEDevice::createServer();
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID,
+                                         BLECharacteristic::PROPERTY_READ |
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+
+  pCharacteristic->setValue("MADDDIN says yes");
+  pService->start();
+  BLEAdvertising *pAdvertising = pServer->getAdvertising();
+  pAdvertising->start();  
+  */
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
