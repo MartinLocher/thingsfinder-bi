@@ -69,6 +69,7 @@ static osjob_t sendjob;
 
 const byte ONE_MINUTE = 60;
 unsigned TX_INTERVAL = 1;
+#define uS_TO_S_FACTOR 1000000 
 // Schedule TX every this many minutes (might become longer due to duty
 // cycle limitations).
 
@@ -92,7 +93,7 @@ const int scanTime = 30;
 #define WIFI_POS  0
 #define  BLE_POS  WIFI_POS + 1
 
-int mode = BLE_POS;
+int mode = WIFI_POS;
 
 
 #define LCD_OFF  0
@@ -513,7 +514,9 @@ void onEvent(ev_t ev) {
 
       // Schedule next transmission
       // digitalWrite(LED_BUILTIN, HIGH);
-      os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL*ONE_MINUTE), do_send);
+      esp_sleep_enable_timer_wakeup(TX_INTERVAL*60* uS_TO_S_FACTOR);
+      esp_deep_sleep_start();
+     // os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL*ONE_MINUTE), do_send);
       break;
     case EV_LOST_TSYNC:
       Serial.println(F("EV_LOST_TSYNC"));
@@ -541,7 +544,7 @@ void onEvent(ev_t ev) {
 void setup() {
   // init packet counter
   //sprintf(mydata, "Packet = %5u", packetNumber);
-
+digitalWrite(LED_BUILTIN, LOW);
   Serial.begin(115200);
   Serial.println(F("Starting"));
 
