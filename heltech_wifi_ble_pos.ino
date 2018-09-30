@@ -35,11 +35,15 @@ static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ O
 
 RTC_DATA_ATTR boolean send_always = true;
 RTC_DATA_ATTR byte sf = 7;
+RTC_DATA_ATTR int seqno_up = 0;
 
 #ifdef TTGO_BUG
 RTC_DATA_ATTR boolean in_sleep = false;
 RTC_DATA_ATTR boolean wake_cnt = 0;
 #endif
+
+
+#define SLEEP_MODE
 
 #define bibernode2
 #ifdef bibernode2
@@ -74,7 +78,8 @@ static osjob_t sendjob;
 // cycle limitations).
 
 #define ONE_MINUTE 60
-RTC_DATA_ATTR unsigned TX_INTERVAL = 10; //in minutes
+//#define ONE_MINUTE 1
+RTC_DATA_ATTR unsigned TX_INTERVAL = 1; //in minutes
 #define uS_TO_S_FACTOR 1000000
 // Schedule TX every this many minutes (might become longer due to duty
 // cycle limitations).
@@ -525,14 +530,18 @@ void onEvent(ev_t ev) {
       Serial.println();
 
       // Schedule next transmission
-      // digitalWrite(LED_BUILTIN, HIGH);
+
+#ifdef SLEEP_MODE
+      seqno_up ++;
       esp_sleep_enable_timer_wakeup(TX_INTERVAL * ONE_MINUTE * uS_TO_S_FACTOR);
 #ifdef TTGO_BUG
       in_sleep = true;
       wake_cnt = 0;
 #endif
       esp_deep_sleep_start();
-      // os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL*ONE_MINUTE), do_send);
+#else
+      os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL * ONE_MINUTE), do_send);
+#endif
       break;
     case EV_LOST_TSYNC:
       Serial.println(F("EV_LOST_TSYNC"));
@@ -664,7 +673,9 @@ void setup() {
   //
   // Disable link check validation
   LMIC_setLinkCheckMode(0);
-
+  #ifdef SLEEP_MODE
+  LMIC.seqnoUp = seqno_up;
+  #endif
   // TTN uses SF9 for its RX2 window.
   LMIC.dn2Dr = DR_SF9;
 
