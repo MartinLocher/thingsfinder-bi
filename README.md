@@ -1,4 +1,4 @@
 # thingsfinder-bi
 
-Heltech Source
-3d Print 
+Mobile Device Finder @ BI for HPS Factory 4.0
+
