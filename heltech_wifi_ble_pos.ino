@@ -33,7 +33,13 @@
 static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST);
 #endif
 
-boolean send_always = true;
+RTC_DATA_ATTR boolean send_always = true;
+RTC_DATA_ATTR byte sf = 7;
+
+#ifdef TTGO_BUG
+RTC_DATA_ATTR boolean in_sleep = false;
+RTC_DATA_ATTR boolean wake_cnt = 0;
+#endif
 
 #define bibernode2
 #ifdef bibernode2
@@ -67,9 +73,9 @@ static osjob_t sendjob;
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
 
-const byte ONE_MINUTE = 60;
-unsigned TX_INTERVAL = 1;
-#define uS_TO_S_FACTOR 1000000 
+#define ONE_MINUTE 60
+RTC_DATA_ATTR unsigned TX_INTERVAL = 10; //in minutes
+#define uS_TO_S_FACTOR 1000000
 // Schedule TX every this many minutes (might become longer due to duty
 // cycle limitations).
 
@@ -93,13 +99,13 @@ const int scanTime = 30;
 #define WIFI_POS  0
 #define  BLE_POS  WIFI_POS + 1
 
-int mode = WIFI_POS;
+RTC_DATA_ATTR int mode = WIFI_POS;
 
 
 #define LCD_OFF  0
 #define LCD_ON  LCD_OFF + 1
 
-int show_lcd_msg = LCD_ON;
+RTC_DATA_ATTR int show_lcd_msg = LCD_ON;
 
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -140,28 +146,34 @@ void set_lcd (byte lcd_stat)
   }
 }
 
-void  set_transmit(byte strength)
+void  set_transmit_SF(byte strength)
 {
   Serial.print("strength: ");
   Serial.println(strength);
   switch (strength)
   {
     case 7:
+      sf = 7;
       LMIC_setDrTxpow(DR_SF7, 14);
       break;
     case 8:
+      sf = 8;
       LMIC_setDrTxpow(DR_SF8, 14);
       break;
     case 9:
+      sf = 9;
       LMIC_setDrTxpow(DR_SF9, 14);
       break;
     case 10:
+      sf = 10;
       LMIC_setDrTxpow(DR_SF10, 14);
       break;
     case 11:
+      sf = 11;
       LMIC_setDrTxpow(DR_SF11, 14);
       break;
     case 12:
+      sf = 12;
       LMIC_setDrTxpow(DR_SF12, 14);
       break;
   }
@@ -486,14 +498,14 @@ void onEvent(ev_t ev) {
           case 3:
             set_lcd (LMIC.frame[LMIC.dataBeg]);
             set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
 
             break;
 
           case 4:
             set_lcd (LMIC.frame[LMIC.dataBeg]);
             set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
             set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
 
             break;
@@ -501,7 +513,7 @@ void onEvent(ev_t ev) {
           case 5:
             set_lcd (LMIC.frame[LMIC.dataBeg]);
             set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
             set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
             set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
 
@@ -514,9 +526,13 @@ void onEvent(ev_t ev) {
 
       // Schedule next transmission
       // digitalWrite(LED_BUILTIN, HIGH);
-      esp_sleep_enable_timer_wakeup(TX_INTERVAL*60* uS_TO_S_FACTOR);
+      esp_sleep_enable_timer_wakeup(TX_INTERVAL * ONE_MINUTE * uS_TO_S_FACTOR);
+#ifdef TTGO_BUG
+      in_sleep = true;
+      wake_cnt = 0;
+#endif
       esp_deep_sleep_start();
-     // os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL*ONE_MINUTE), do_send);
+      // os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL*ONE_MINUTE), do_send);
       break;
     case EV_LOST_TSYNC:
       Serial.println(F("EV_LOST_TSYNC"));
@@ -544,10 +560,31 @@ void onEvent(ev_t ev) {
 void setup() {
   // init packet counter
   //sprintf(mydata, "Packet = %5u", packetNumber);
-digitalWrite(LED_BUILTIN, LOW);
-  Serial.begin(115200);
-  Serial.println(F("Starting"));
 
+
+  Serial.begin(115200);
+  delay(1000); //Take some time to open up the Serial Monitor
+  Serial.println(F("Starting"));
+#ifdef TTGO_BUG
+  Serial.println(in_sleep);
+  Serial.println(wake_cnt);
+
+
+  if (in_sleep == true)
+  {
+    wake_cnt ++;
+    if (wake_cnt > 10)
+    {
+      wake_cnt = 0;
+      in_sleep = false;
+    }
+    else
+    {
+      esp_sleep_enable_timer_wakeup(TX_INTERVAL * ONE_MINUTE * uS_TO_S_FACTOR);
+      esp_deep_sleep_start();
+    }
+  }
+#endif
   // set up the display
 #ifdef LCD_DISP
   if (show_lcd_msg)
@@ -561,21 +598,21 @@ digitalWrite(LED_BUILTIN, LOW);
   }
 #endif
 
-/*
+  /*
 
-  BLEDevice::init("BI_ThingsFinder");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-                                         CHARACTERISTIC_UUID,
-                                         BLECharacteristic::PROPERTY_READ |
-                                         BLECharacteristic::PROPERTY_WRITE
-                                       );
+    BLEDevice::init("BI_ThingsFinder");
+    BLEServer *pServer = BLEDevice::createServer();
+    BLEService *pService = pServer->createService(SERVICE_UUID);
+    BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+                                           CHARACTERISTIC_UUID,
+                                           BLECharacteristic::PROPERTY_READ |
+                                           BLECharacteristic::PROPERTY_WRITE
+                                         );
 
-  pCharacteristic->setValue("MADDDIN says yes");
-  pService->start();
-  BLEAdvertising *pAdvertising = pServer->getAdvertising();
-  pAdvertising->start();  
+    pCharacteristic->setValue("MADDDIN says yes");
+    pService->start();
+    BLEAdvertising *pAdvertising = pServer->getAdvertising();
+    pAdvertising->start();
   */
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
@@ -632,7 +669,8 @@ digitalWrite(LED_BUILTIN, LOW);
   LMIC.dn2Dr = DR_SF9;
 
   // Set data rate and transmit power for uplink (note: txpow seems to be ignored by the library)
-  LMIC_setDrTxpow(DR_SF7, 14);
+  set_transmit_SF (sf);
+  //LMIC_setDrTxpow(DR_SF7, 14);
 
   // Start job
   do_send(&sendjob);
