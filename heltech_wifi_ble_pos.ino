@@ -36,14 +36,15 @@ static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ O
 RTC_DATA_ATTR boolean send_always = true;
 RTC_DATA_ATTR byte sf = 7;
 RTC_DATA_ATTR int seqno_up = 0;
-RTC_DATA_ATTR byte dev_unique_id = 0;
-RTC_DATA_ATTR byte room_number = 0;
+RTC_DATA_ATTR byte dev_unique_id =0x01;
+RTC_DATA_ATTR byte room_number = 0x77;
 
 #ifdef TTGO_BUG
 RTC_DATA_ATTR boolean in_sleep = false;
 RTC_DATA_ATTR boolean wake_cnt = 0;
 #endif
 
+#define LORA_MSG_PORT 66
 
 #define SLEEP_MODE
 
@@ -72,7 +73,7 @@ void os_getDevKey (u1_t* buf) { }
 
 
 #define MAX_MAC 2 // number of MAC addresses to sent
-static char mydata[MAX_MAC * 7] ;
+static char mydata[MAX_MAC*7 + 2] ;
 String mydata_str;
 static osjob_t sendjob;
 
@@ -106,7 +107,7 @@ const int scanTime = 30;
 #define WIFI_POS  0
 #define  BLE_POS  WIFI_POS + 1
 
-RTC_DATA_ATTR int mode = WIFI_POS;
+RTC_DATA_ATTR int mode = BLE_POS;
 
 
 #define LCD_OFF  0
@@ -132,6 +133,8 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 
 void set_lcd (byte lcd_stat)
 {
+  Serial.print("LCD set to: ");
+  Serial.println(lcd_stat);
   show_lcd_msg = lcd_stat;
 
   if (show_lcd_msg == LCD_OFF)
@@ -155,7 +158,7 @@ void set_lcd (byte lcd_stat)
 
 void  set_transmit_SF(byte strength)
 {
-  Serial.print("strength: ");
+  Serial.print("SF set to: ");
   Serial.println(strength);
   switch (strength)
   {
@@ -189,7 +192,7 @@ void  set_transmit_SF(byte strength)
 
 void set_mode (byte whish_mode)
 {
-  Serial.print("Mode: ");
+  Serial.print("Mode set to: ");
   Serial.println(mode);
 
   mode = whish_mode;
@@ -197,7 +200,7 @@ void set_mode (byte whish_mode)
 
 void  set_sleep(byte sleeptime)
 {
-  Serial.print("Sleeptime: ");
+  Serial.print("Sleeptime set to: ");
   Serial.println(sleeptime);
 
   TX_INTERVAL = sleeptime;
@@ -205,7 +208,7 @@ void  set_sleep(byte sleeptime)
 
 void set_sendallways(byte flag)
 {
-  Serial.print("Sendallways: ");
+  Serial.print("Sendallways set to: ");
   Serial.println(flag);
 
   if (flag > 0)
@@ -216,11 +219,15 @@ void set_sendallways(byte flag)
 
 void set_unique_id( byte id )
 {
+  Serial.print("Unique_Id set to: ");
+  Serial.println(id);
   dev_unique_id = id;
 }
 
 void set_room_number( byte room )
 {
+  Serial.print("Room set to: ");
+  Serial.println(room);
   room_number = room;
 }
 
@@ -266,8 +273,12 @@ void do_send(osjob_t* j) {
         u8x8.drawString(0, 3, "Send Data");
       }
 #endif
-
-      LMIC_setTxData2(66, (xref2u1_t)mydata, MAX_MAC * 7, 0);
+      uint8_t * macptr;
+      
+      macptr = (uint8_t * )mydata;
+      for (int i = 0; i < sizeof(mydata); i ++)
+        Serial.printf("%02x", *(macptr+i));
+      LMIC_setTxData2(LORA_MSG_PORT, (xref2u1_t)mydata, sizeof(mydata), 0);
 
       Serial.println(F("Packet queued"));
     }
@@ -375,15 +386,16 @@ int do_ble_scanAndsort()
 
 
         /*mac 0:
-         * 0a0bcfd8b0c0
-         * mac1:
-         * 0b0bcfd8b0c0
-         * for mac0 mydata:0a0bcfd8b0c00a*
+           0a0bcfd8b0c0
+           mac1:
+           0b0bcfd8b0c0
+           for mac0 mydata:0a0bcfd8b0c00a
         */
       }
       //mydata:0a0bcfd8b0c00a0b0bcfd8b0c00b
-      *(mydata+act_cnt*7) = dev_unique_id;
-      *(mydata+act_cnt*7+1) = room_number;
+      
+      *(mydata + act_cnt * 7) = dev_unique_id;
+      *(mydata + act_cnt * 7 + 1) = room_number;
 #ifdef LCD_DISP
       if (show_lcd_msg)
       {
@@ -436,8 +448,8 @@ int do_wifi_scanAndSort() {
       l = MAX_MAC;
     else
       l = n;
-
-    for (int i = 0; i < l; i++)
+    int i;
+    for (i = 0; i < l; i++)
     {
       Serial.println(i);
       macptr = WiFi.BSSID(indices[i]);
@@ -460,6 +472,9 @@ int do_wifi_scanAndSort() {
       }
 #endif
     }
+  
+    *(mydata + i * 7) = dev_unique_id;
+    *(mydata + i * 7 + 1) = room_number;
 
   }
   return (n);
@@ -554,7 +569,7 @@ void onEvent(ev_t ev) {
             set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
             set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
             set_unique_id(LMIC.frame[LMIC.dataBeg + 5]);
-            
+
             break;
 
           case 7:
@@ -565,7 +580,7 @@ void onEvent(ev_t ev) {
             set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
             set_unique_id(LMIC.frame[LMIC.dataBeg + 5]);
             set_room_number(LMIC.frame[LMIC.dataBeg + 6]);
-            
+
             break;
 
         }
@@ -717,9 +732,9 @@ void setup() {
   //
   // Disable link check validation
   LMIC_setLinkCheckMode(0);
-  #ifdef SLEEP_MODE
+#ifdef SLEEP_MODE
   LMIC.seqnoUp = seqno_up;
-  #endif
+#endif
   // TTN uses SF9 for its RX2 window.
   LMIC.dn2Dr = DR_SF9;
 
