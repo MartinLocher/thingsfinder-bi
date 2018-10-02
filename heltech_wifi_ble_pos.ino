@@ -36,6 +36,8 @@ static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ O
 RTC_DATA_ATTR boolean send_always = true;
 RTC_DATA_ATTR byte sf = 7;
 RTC_DATA_ATTR int seqno_up = 0;
+RTC_DATA_ATTR byte dev_unique_id = 0;
+RTC_DATA_ATTR byte room_number = 0;
 
 #ifdef TTGO_BUG
 RTC_DATA_ATTR boolean in_sleep = false;
@@ -212,6 +214,16 @@ void set_sendallways(byte flag)
     send_always = false;
 }
 
+void set_unique_id( byte id )
+{
+  dev_unique_id = id;
+}
+
+void set_room_number( byte room )
+{
+  room_number = room;
+}
+
 void do_send(osjob_t* j) {
   // Check if there is not a current TX/RX job running
   if (LMIC.opmode & OP_TXRXPEND) {
@@ -355,12 +367,23 @@ int do_ble_scanAndsort()
             Serial.print(':');
           }
           mydata[j + 7 * act_cnt] = *macptr++;
-        }
+        } //Mac, 0a:0b:cf:d8:b0:c0: getnative(): 0a0bcfd8b0c0,
         Serial.println();
 
         mydata[6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
         act_cnt ++;
+
+
+        /*mac 0:
+         * 0a0bcfd8b0c0
+         * mac1:
+         * 0b0bcfd8b0c0
+         * for mac0 mydata:0a0bcfd8b0c00a*
+        */
       }
+      //mydata:0a0bcfd8b0c00a0b0bcfd8b0c00b
+      *(mydata+act_cnt*7) = dev_unique_id;
+      *(mydata+act_cnt*7+1) = room_number;
 #ifdef LCD_DISP
       if (show_lcd_msg)
       {
@@ -522,6 +545,27 @@ void onEvent(ev_t ev) {
             set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
             set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
 
+            break;
+
+          case 6:
+            set_lcd (LMIC.frame[LMIC.dataBeg]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
+            set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
+            set_unique_id(LMIC.frame[LMIC.dataBeg + 5]);
+            
+            break;
+
+          case 7:
+            set_lcd (LMIC.frame[LMIC.dataBeg]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
+            set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
+            set_unique_id(LMIC.frame[LMIC.dataBeg + 5]);
+            set_room_number(LMIC.frame[LMIC.dataBeg + 6]);
+            
             break;
 
         }
