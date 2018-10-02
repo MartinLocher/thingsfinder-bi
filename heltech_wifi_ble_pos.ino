@@ -73,7 +73,7 @@ void os_getDevKey (u1_t* buf) { }
 
 
 #define MAX_MAC 2 // number of MAC addresses to sent
-static char mydata[MAX_MAC*7 + 2] ;
+static char mydata[MAX_MAC*7 + 2 + 1] ; //*Space for 2 MACs + 2 RSSI + no_of_macs_actually
 String mydata_str;
 static osjob_t sendjob;
 
@@ -355,6 +355,8 @@ int do_ble_scanAndsort()
     }
 
     memset(mydata, 0, sizeof(mydata));
+    mydata[0] = real_devs;
+    
     int act_cnt = 0;
     for (int i = 0; i < n; i++)
     {
@@ -377,11 +379,11 @@ int do_ble_scanAndsort()
           {
             Serial.print(':');
           }
-          mydata[j + 7 * act_cnt] = *macptr++;
+          mydata[1 + j + 7 * act_cnt] = *macptr++;
         } //Mac, 0a:0b:cf:d8:b0:c0: getnative(): 0a0bcfd8b0c0,
         Serial.println();
 
-        mydata[6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
+        mydata[1+ 6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
         act_cnt ++;
 
 
@@ -394,8 +396,8 @@ int do_ble_scanAndsort()
       }
       //mydata:0a0bcfd8b0c00a0b0bcfd8b0c00b
       
-      *(mydata + act_cnt * 7) = dev_unique_id;
-      *(mydata + act_cnt * 7 + 1) = room_number;
+      *(mydata + 1 + act_cnt * 7) = dev_unique_id;
+      *(mydata + 1 + act_cnt * 7 + 1) = room_number;
 #ifdef LCD_DISP
       if (show_lcd_msg)
       {
@@ -449,6 +451,8 @@ int do_wifi_scanAndSort() {
     else
       l = n;
     int i;
+    memset(mydata, 0, sizeof(mydata));
+    mydata[0] = l;
     for (i = 0; i < l; i++)
     {
       Serial.println(i);
@@ -459,10 +463,10 @@ int do_wifi_scanAndSort() {
         {
           Serial.print(':');
         }
-        mydata[j + 7 * i] = *macptr++;
+        mydata[j + 1 + 7 * i] = *macptr++;
       }
       Serial.print(" RSSI: ");
-      mydata[6 + 7 * i] = WiFi.RSSI(indices[i]);
+      mydata[6 + 1 + 7 * i] = WiFi.RSSI(indices[i]);
       Serial.print(WiFi.RSSI(indices[i]));
       Serial.println();
 #ifdef LCD_DISP
@@ -473,8 +477,8 @@ int do_wifi_scanAndSort() {
 #endif
     }
   
-    *(mydata + i * 7) = dev_unique_id;
-    *(mydata + i * 7 + 1) = room_number;
+    *(mydata + 1 + i * 7) = dev_unique_id;
+    *(mydata + 1 +  i * 7 + 1) = room_number;
 
   }
   return (n);
