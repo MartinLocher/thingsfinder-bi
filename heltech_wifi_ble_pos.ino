@@ -36,7 +36,7 @@ static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ O
 RTC_DATA_ATTR boolean send_always = true;
 RTC_DATA_ATTR byte sf = 7;
 RTC_DATA_ATTR int seqno_up = 0;
-RTC_DATA_ATTR byte dev_unique_id =0x01;
+RTC_DATA_ATTR byte dev_unique_id = 0x01;
 RTC_DATA_ATTR byte room_number = 0x77;
 
 #ifdef TTGO_BUG
@@ -73,9 +73,18 @@ void os_getDevKey (u1_t* buf) { }
 
 
 #define MAX_MAC 2 // number of MAC addresses to sent
-static char mydata[MAX_MAC*7 + 2 + 1] ; //*Space for 2 MACs + 2 RSSI + no_of_macs_actually
+static char mydata[MAX_MAC * 7 + MAX_MAC] ; //*Space for 2 MACs + 2 RSSI 
 String mydata_str;
 static osjob_t sendjob;
+
+
+#define LED_OFF   0
+#define LED_ON    LED_OFF  + 1
+
+#define LED_PIN    25
+
+RTC_DATA_ATTR byte LED_STATE = LED_OFF;
+
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
@@ -130,6 +139,15 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     }
 };
 
+
+
+void set_led (byte led_stat)
+{
+  Serial.print("LED set to: ");
+  Serial.println(led_stat);
+  LED_STATE = led_stat;
+  digitalWrite (LED_PIN, LED_STATE);
+}
 
 void set_lcd (byte lcd_stat)
 {
@@ -231,6 +249,166 @@ void set_room_number( byte room )
   room_number = room;
 }
 
+
+void onEvent(ev_t ev) {
+  Serial.print(os_getTime());
+  Serial.print(": ");
+  switch (ev) {
+    case EV_SCAN_TIMEOUT:
+      Serial.println(F("EV_SCAN_TIMEOUT"));
+      break;
+    case EV_BEACON_FOUND:
+      Serial.println(F("EV_BEACON_FOUND"));
+      break;
+    case EV_BEACON_MISSED:
+      Serial.println(F("EV_BEACON_MISSED"));
+      break;
+    case EV_BEACON_TRACKED:
+      Serial.println(F("EV_BEACON_TRACKED"));
+      break;
+    case EV_JOINING:
+      Serial.println(F("EV_JOINING"));
+      break;
+    case EV_JOINED:
+      Serial.println(F("EV_JOINED"));
+      break;
+    case EV_RFU1:
+      Serial.println(F("EV_RFU1"));
+      break;
+    case EV_JOIN_FAILED:
+      Serial.println(F("EV_JOIN_FAILED"));
+      break;
+    case EV_REJOIN_FAILED:
+      Serial.println(F("EV_REJOIN_FAILED"));
+      break;
+    case EV_TXCOMPLETE:
+      Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
+      if (LMIC.txrxFlags & TXRX_ACK)
+        Serial.println(F("Received ack"));
+      if (LMIC.dataLen) {
+        Serial.println(F("Received "));
+        Serial.println(LMIC.dataLen);
+        Serial.println(F(" bytes of payload"));
+        for (int i = 0; i < LMIC.dataLen; i++) {
+          if (LMIC.frame[LMIC.dataBeg + i] < 0x10) {
+            Serial.print(F("0"));
+          }
+          Serial.print(LMIC.frame[LMIC.dataBeg + i], HEX);
+        }
+        Serial.println();
+        switch (LMIC.dataLen)
+        {
+
+          case 1:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            break;
+
+
+          case 2:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg] + 1);
+
+            break;
+
+          case 3:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg + 1]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 2]);
+
+            break;
+
+          case 4:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg + 1]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 3]);
+
+            break;
+
+          case 5:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg + 1]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 3]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 4]);
+
+
+            break;
+
+          case 6:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg + 1]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 3]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 4]);
+            set_sendallways(LMIC.frame[LMIC.dataBeg + 5]);
+
+            break;
+
+          case 7:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg + 1]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 3]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 4]);
+            set_sendallways(LMIC.frame[LMIC.dataBeg + 5]);
+            set_unique_id(LMIC.frame[LMIC.dataBeg + 6]);
+
+            break;
+
+          case 8:
+            set_led (LMIC.frame[LMIC.dataBeg]);
+            set_lcd (LMIC.frame[LMIC.dataBeg + 1]);
+            set_mode(LMIC.frame[LMIC.dataBeg + 2]);
+            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 3]);
+            set_sleep(LMIC.frame[LMIC.dataBeg + 4]);
+            set_sendallways(LMIC.frame[LMIC.dataBeg + 5]);
+            set_unique_id(LMIC.frame[LMIC.dataBeg + 6]);
+            set_room_number(LMIC.frame[LMIC.dataBeg + 7]);
+
+            // 00 00 00 07 0A 00 0A 40 : led_off, no lcd, wifi, sf7, 10 minutes sleep, not all send, uid=10, room=64
+            break;
+
+        }
+
+      }
+      Serial.println();
+
+      // Schedule next transmission
+
+#ifdef SLEEP_MODE
+      seqno_up ++;
+      esp_sleep_enable_timer_wakeup(TX_INTERVAL * ONE_MINUTE * uS_TO_S_FACTOR);
+#ifdef TTGO_BUG
+      in_sleep = true;
+      wake_cnt = 0;
+#endif
+      esp_deep_sleep_start();
+#else
+      os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL * ONE_MINUTE), do_send);
+#endif
+      break;
+    case EV_LOST_TSYNC:
+      Serial.println(F("EV_LOST_TSYNC"));
+      break;
+    case EV_RESET:
+      Serial.println(F("EV_RESET"));
+      break;
+    case EV_RXCOMPLETE:
+      // data received in ping slot
+      Serial.println(F("EV_RXCOMPLETE"));
+      break;
+    case EV_LINK_DEAD:
+      Serial.println(F("EV_LINK_DEAD"));
+      break;
+    case EV_LINK_ALIVE:
+      Serial.println(F("EV_LINK_ALIVE"));
+      break;
+    default:
+      Serial.println(F("Unknown event"));
+      break;
+  }
+}
 void do_send(osjob_t* j) {
   // Check if there is not a current TX/RX job running
   if (LMIC.opmode & OP_TXRXPEND) {
@@ -274,10 +452,10 @@ void do_send(osjob_t* j) {
       }
 #endif
       uint8_t * macptr;
-      
+
       macptr = (uint8_t * )mydata;
       for (int i = 0; i < sizeof(mydata); i ++)
-        Serial.printf("%02x", *(macptr+i));
+        Serial.printf("%02x", *(macptr + i));
       LMIC_setTxData2(LORA_MSG_PORT, (xref2u1_t)mydata, sizeof(mydata), 0);
 
       Serial.println(F("Packet queued"));
@@ -355,7 +533,6 @@ int do_ble_scanAndsort()
     }
 
     memset(mydata, 0, sizeof(mydata));
-    mydata[0] = real_devs;
     
     int act_cnt = 0;
     for (int i = 0; i < n; i++)
@@ -379,11 +556,11 @@ int do_ble_scanAndsort()
           {
             Serial.print(':');
           }
-          mydata[1 + j + 7 * act_cnt] = *macptr++;
+          mydata[j + 7 * act_cnt] = *macptr++;
         } //Mac, 0a:0b:cf:d8:b0:c0: getnative(): 0a0bcfd8b0c0,
         Serial.println();
 
-        mydata[1+ 6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
+        mydata[6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
         act_cnt ++;
 
 
@@ -395,9 +572,9 @@ int do_ble_scanAndsort()
         */
       }
       //mydata:0a0bcfd8b0c00a0b0bcfd8b0c00b
-      
-      *(mydata + 1 + act_cnt * 7) = dev_unique_id;
-      *(mydata + 1 + act_cnt * 7 + 1) = room_number;
+
+      *(mydata +  act_cnt * 7) = dev_unique_id;
+      *(mydata +  act_cnt * 7 + 1) = room_number;
 #ifdef LCD_DISP
       if (show_lcd_msg)
       {
@@ -452,7 +629,7 @@ int do_wifi_scanAndSort() {
       l = n;
     int i;
     memset(mydata, 0, sizeof(mydata));
-    mydata[0] = l;
+  
     for (i = 0; i < l; i++)
     {
       Serial.println(i);
@@ -466,7 +643,7 @@ int do_wifi_scanAndSort() {
         mydata[j + 1 + 7 * i] = *macptr++;
       }
       Serial.print(" RSSI: ");
-      mydata[6 + 1 + 7 * i] = WiFi.RSSI(indices[i]);
+      mydata[6 + 7 * i] = WiFi.RSSI(indices[i]);
       Serial.print(WiFi.RSSI(indices[i]));
       Serial.println();
 #ifdef LCD_DISP
@@ -476,157 +653,15 @@ int do_wifi_scanAndSort() {
       }
 #endif
     }
-  
-    *(mydata + 1 + i * 7) = dev_unique_id;
-    *(mydata + 1 +  i * 7 + 1) = room_number;
+
+    *(mydata + i * 7) = dev_unique_id;
+    *(mydata + i * 7 + 1) = room_number;
 
   }
   return (n);
 }
 
 
-void onEvent(ev_t ev) {
-  Serial.print(os_getTime());
-  Serial.print(": ");
-  switch (ev) {
-    case EV_SCAN_TIMEOUT:
-      Serial.println(F("EV_SCAN_TIMEOUT"));
-      break;
-    case EV_BEACON_FOUND:
-      Serial.println(F("EV_BEACON_FOUND"));
-      break;
-    case EV_BEACON_MISSED:
-      Serial.println(F("EV_BEACON_MISSED"));
-      break;
-    case EV_BEACON_TRACKED:
-      Serial.println(F("EV_BEACON_TRACKED"));
-      break;
-    case EV_JOINING:
-      Serial.println(F("EV_JOINING"));
-      break;
-    case EV_JOINED:
-      Serial.println(F("EV_JOINED"));
-      break;
-    case EV_RFU1:
-      Serial.println(F("EV_RFU1"));
-      break;
-    case EV_JOIN_FAILED:
-      Serial.println(F("EV_JOIN_FAILED"));
-      break;
-    case EV_REJOIN_FAILED:
-      Serial.println(F("EV_REJOIN_FAILED"));
-      break;
-    case EV_TXCOMPLETE:
-      Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
-      if (LMIC.txrxFlags & TXRX_ACK)
-        Serial.println(F("Received ack"));
-      if (LMIC.dataLen) {
-        Serial.println(F("Received "));
-        Serial.println(LMIC.dataLen);
-        Serial.println(F(" bytes of payload"));
-        for (int i = 0; i < LMIC.dataLen; i++) {
-          if (LMIC.frame[LMIC.dataBeg + i] < 0x10) {
-            Serial.print(F("0"));
-          }
-          Serial.print(LMIC.frame[LMIC.dataBeg + i], HEX);
-        }
-        switch (LMIC.dataLen)
-        {
-          case 1:
-            set_lcd (LMIC.frame[LMIC.dataBeg]);
-            break;
-
-          case 2:
-            set_lcd (LMIC.frame[LMIC.dataBeg]);
-            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-
-            break;
-
-          case 3:
-            set_lcd (LMIC.frame[LMIC.dataBeg]);
-            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
-
-            break;
-
-          case 4:
-            set_lcd (LMIC.frame[LMIC.dataBeg]);
-            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
-            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
-
-            break;
-
-          case 5:
-            set_lcd (LMIC.frame[LMIC.dataBeg]);
-            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
-            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
-            set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
-
-            break;
-
-          case 6:
-            set_lcd (LMIC.frame[LMIC.dataBeg]);
-            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
-            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
-            set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
-            set_unique_id(LMIC.frame[LMIC.dataBeg + 5]);
-
-            break;
-
-          case 7:
-            set_lcd (LMIC.frame[LMIC.dataBeg]);
-            set_mode(LMIC.frame[LMIC.dataBeg + 1]);
-            set_transmit_SF(LMIC.frame[LMIC.dataBeg + 2]);
-            set_sleep(LMIC.frame[LMIC.dataBeg + 3]);
-            set_sendallways(LMIC.frame[LMIC.dataBeg + 4]);
-            set_unique_id(LMIC.frame[LMIC.dataBeg + 5]);
-            set_room_number(LMIC.frame[LMIC.dataBeg + 6]);
-
-            break;
-
-        }
-
-      }
-      Serial.println();
-
-      // Schedule next transmission
-
-#ifdef SLEEP_MODE
-      seqno_up ++;
-      esp_sleep_enable_timer_wakeup(TX_INTERVAL * ONE_MINUTE * uS_TO_S_FACTOR);
-#ifdef TTGO_BUG
-      in_sleep = true;
-      wake_cnt = 0;
-#endif
-      esp_deep_sleep_start();
-#else
-      os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL * ONE_MINUTE), do_send);
-#endif
-      break;
-    case EV_LOST_TSYNC:
-      Serial.println(F("EV_LOST_TSYNC"));
-      break;
-    case EV_RESET:
-      Serial.println(F("EV_RESET"));
-      break;
-    case EV_RXCOMPLETE:
-      // data received in ping slot
-      Serial.println(F("EV_RXCOMPLETE"));
-      break;
-    case EV_LINK_DEAD:
-      Serial.println(F("EV_LINK_DEAD"));
-      break;
-    case EV_LINK_ALIVE:
-      Serial.println(F("EV_LINK_ALIVE"));
-      break;
-    default:
-      Serial.println(F("Unknown event"));
-      break;
-  }
-}
 
 
 void setup() {
@@ -637,6 +672,8 @@ void setup() {
   Serial.begin(115200);
   delay(1000); //Take some time to open up the Serial Monitor
   Serial.println(F("Starting"));
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite (LED_PIN, LED_STATE);
 #ifdef TTGO_BUG
   Serial.println(in_sleep);
   Serial.println(wake_cnt);
