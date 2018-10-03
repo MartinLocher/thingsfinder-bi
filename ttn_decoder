@@ -43,6 +43,8 @@ function Decoder(bytes)
 	}
 
 	var rssi1 = hexToInt(bytes[6]);
+	var unique_id;
+		var room_number;
 	
 	if ( bytes.length > 9 )
 	{
@@ -59,12 +61,12 @@ function Decoder(bytes)
 		}
 
 		var rssi2 = hexToInt(bytes[13]);		
-		var unique_id = hexToInt(bytes[14]);
-		var room_number = hexToInt(bytes[15]);
+		unique_id = hexToInt(bytes[14]);
+		room_number = hexToInt(bytes[15]);
 	}
 	else {
-		var unique_id = hexToInt(bytes[7]);
-		var room_number = hexToInt(bytes[8]);
+		unique_id = hexToInt(bytes[7]);
+		room_number = hexToInt(bytes[8]);
 	}
 	
 
