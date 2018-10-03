@@ -296,6 +296,9 @@ void onEvent(ev_t ev) {
           Serial.print(LMIC.frame[LMIC.dataBeg + i], HEX);
         }
         Serial.println();
+
+        // on/off cmds should be coded bitwise in just one byte not by using a complete array  !!!! 
+        // future release
         switch (LMIC.dataLen)
         {
 
@@ -640,7 +643,7 @@ int do_wifi_scanAndSort() {
         {
           Serial.print(':');
         }
-        mydata[j + 1 + 7 * i] = *macptr++;
+        mydata[j  + 7 * i] = *macptr++;
       }
       Serial.print(" RSSI: ");
       mydata[6 + 7 * i] = WiFi.RSSI(indices[i]);
