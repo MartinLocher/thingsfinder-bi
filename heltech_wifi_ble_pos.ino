@@ -48,7 +48,7 @@ RTC_DATA_ATTR boolean wake_cnt = 0;
 
 #define SLEEP_MODE
 
-#define bibernode2
+//#define bibernode2
 #ifdef bibernode2
 static const u1_t NWKSKEY[16] = { 0xA2, 0x90, 0xE6, 0x58, 0xD0, 0x5A, 0x1E, 0x1B, 0x99, 0x84, 0x6C, 0xD0, 0xD1, 0x97, 0xFD, 0x1C };
 
@@ -56,7 +56,7 @@ static const u1_t APPSKEY[16] = { 0x85, 0xB1, 0x18, 0x2A, 0xA1, 0x90, 0x82, 0xD4
 
 static const u4_t DEVADDR = 0x260115AE;
 #endif
-//#define BIBERNODE1
+#define BIBERNODE1
 #ifdef BIBERNODE1
 static const PROGMEM u1_t NWKSKEY[16] = { 0x2D, 0x89, 0xF5, 0x50, 0x64, 0x06, 0x3B, 0xA3, 0x67, 0xB8, 0x71, 0x80, 0x63, 0x6C, 0xB2, 0xA1 };
 static const u1_t PROGMEM APPSKEY[16] = { 0x73, 0x8A, 0xD7, 0xD0, 0x17, 0x67, 0x5D, 0xF2, 0xC2, 0x11, 0xC4, 0x71, 0x3A, 0x97, 0x4D, 0x7E };
@@ -105,7 +105,7 @@ const lmic_pinmap lmic_pins = {
   .dio = { LoRa_DIO0, LoRa_DIO1, LoRa_DIO2 },
 };
 
-const char *DEVICE_NAME = "Gigaset G-tag";
+const char *DEVICE_NAME = "Gigaset G-taggggggggggggggg";
 //const char * SERVICE_DATA_UUID = "0000feaa-0000-1000-8000-00805f9b34fb";
 //must be executed in root
 //hciconfig hci0 up
@@ -114,7 +114,8 @@ const char *DEVICE_NAME = "Gigaset G-tag";
 const int scanTime = 30;
 
 #define WIFI_POS  0
-#define  BLE_POS  WIFI_POS + 1
+#define BLE_POS  WIFI_POS + 1
+#define GPS_POS  BLE_POS + 1
 
 RTC_DATA_ATTR int mode = BLE_POS;
 
@@ -419,8 +420,9 @@ void do_send(osjob_t* j) {
   } else {
 
     int l = 0;
-
-    if (mode == BLE_POS)
+    int initial_mode = mode;
+    
+    if ( mode == BLE_POS )
     {
 #ifdef LCD_DISP
       if (show_lcd_msg)
@@ -429,22 +431,42 @@ void do_send(osjob_t* j) {
       }
 #endif
       l = do_ble_scanAndsort();
-    }
-    else
-    {
-      if (mode == WIFI_POS)
+
+      if ( l == 0 )
       {
-#ifdef LCD_DISP
-        if (show_lcd_msg)
-        {
-          u8x8.drawString(0, 3, "Scan Wifis");
-        }
-#endif
-        l = do_wifi_scanAndSort();
+        mode = WIFI_POS;
       }
     }
+    
+    if ( mode == WIFI_POS )
+    {
+#ifdef LCD_DISP
+      if (show_lcd_msg)
+      {
+        u8x8.drawString(0, 3, "Scan Wifis");
+      }
+#endif
+      l = do_wifi_scanAndSort();
 
+      if ( l == 0 )
+      {
+        mode = GPS_POS;
+      }      
+    }
 
+    if ( mode == GPS_POS )
+    {
+#ifdef LCD_DISP
+      if (show_lcd_msg)
+      {
+        u8x8.drawString(0, 3, "Scan GPS");
+      }
+#endif
+      l = do_gps_scan();      
+    }
+
+    mode = initial_mode;
+    
     if (l > 0)
     {
 
@@ -493,6 +515,8 @@ int do_ble_scanAndsort()
 
   int n = foundDevices.getCount();
   int real_devs = 0;
+  int act_cnt = 0;
+      
   Serial.println("list of bles");
   for (int i = 0; i < n; i++)
   {
@@ -537,7 +561,6 @@ int do_ble_scanAndsort()
 
     memset(mydata, 0, sizeof(mydata));
     
-    int act_cnt = 0;
     for (int i = 0; i < n; i++)
     {
       if ((foundDevices.getDevice(indices[i]).getName() == DEVICE_NAME) && (act_cnt < MAX_MAC))
@@ -587,7 +610,7 @@ int do_ble_scanAndsort()
     }
 
   }
-  return real_devs;
+  return act_cnt;
 }
 /*
   /* Scan available networks and sort them in order to their signal strength. */
@@ -664,7 +687,11 @@ int do_wifi_scanAndSort() {
   return (n);
 }
 
-
+int do_gps_scan() {
+   
+   
+   return 0;
+}
 
 
 void setup() {
