@@ -105,7 +105,7 @@ const lmic_pinmap lmic_pins = {
   .dio = { LoRa_DIO0, LoRa_DIO1, LoRa_DIO2 },
 };
 
-const char *DEVICE_NAME = "Gigaset G-taggggggggggggggg";
+const char *DEVICE_NAME = "Gigaset G-tag";
 //const char * SERVICE_DATA_UUID = "0000feaa-0000-1000-8000-00805f9b34fb";
 //must be executed in root
 //hciconfig hci0 up
