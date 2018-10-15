@@ -73,7 +73,7 @@ void os_getDevKey (u1_t* buf) { }
 
 
 #define MAX_MAC 2 // number of MAC addresses to sent
-static char mydata[MAX_MAC * 7 + MAX_MAC] ; //*Space for 2 MACs + 2 RSSI 
+static char mydata[1 + MAX_MAC * 7 + MAX_MAC] ; //*Space for Mode + (2 MACs + 2 RSSI9 + Unique ID + Room ID
 String mydata_str;
 static osjob_t sendjob;
 
@@ -117,7 +117,7 @@ const int scanTime = 30;
 #define BLE_POS  WIFI_POS + 1
 #define GPS_POS  BLE_POS + 1
 
-RTC_DATA_ATTR int mode = BLE_POS;
+RTC_DATA_ATTR int mode = GPS_POS;
 
 
 #define LCD_OFF  0
@@ -560,7 +560,8 @@ int do_ble_scanAndsort()
     }
 
     memset(mydata, 0, sizeof(mydata));
-    
+    mydata[0] = mode;
+
     for (int i = 0; i < n; i++)
     {
       if ((foundDevices.getDevice(indices[i]).getName() == DEVICE_NAME) && (act_cnt < MAX_MAC))
@@ -582,11 +583,11 @@ int do_ble_scanAndsort()
           {
             Serial.print(':');
           }
-          mydata[j + 7 * act_cnt] = *macptr++;
+          mydata[1 + j + 7 * act_cnt] = *macptr++;
         } //Mac, 0a:0b:cf:d8:b0:c0: getnative(): 0a0bcfd8b0c0,
         Serial.println();
 
-        mydata[6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
+        mydata[1 + 6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
         act_cnt ++;
 
 
@@ -599,8 +600,8 @@ int do_ble_scanAndsort()
       }
       //mydata:0a0bcfd8b0c00a0b0bcfd8b0c00b
 
-      *(mydata +  act_cnt * 7) = dev_unique_id;
-      *(mydata +  act_cnt * 7 + 1) = room_number;
+      *(mydata + MAX_MAC * 7 + 1) = dev_unique_id;  //1 + mydata +  2 * 7
+      *(mydata + MAX_MAC * 7 + 2) = room_number;    //1 + mydata +  2 * 7 + 1
 #ifdef LCD_DISP
       if (show_lcd_msg)
       {
@@ -655,7 +656,8 @@ int do_wifi_scanAndSort() {
       l = n;
     int i;
     memset(mydata, 0, sizeof(mydata));
-  
+
+    mydata[0] = mode;
     for (i = 0; i < l; i++)
     {
       Serial.println(i);
@@ -666,10 +668,10 @@ int do_wifi_scanAndSort() {
         {
           Serial.print(':');
         }
-        mydata[j  + 7 * i] = *macptr++;
+        mydata[1 + j  + 7 * i] = *macptr++;
       }
       Serial.print(" RSSI: ");
-      mydata[6 + 7 * i] = WiFi.RSSI(indices[i]);
+      mydata[1 + 6 + 7 * i] = WiFi.RSSI(indices[i]);
       Serial.print(WiFi.RSSI(indices[i]));
       Serial.println();
 #ifdef LCD_DISP
@@ -680,17 +682,95 @@ int do_wifi_scanAndSort() {
 #endif
     }
 
-    *(mydata + i * 7) = dev_unique_id;
-    *(mydata + i * 7 + 1) = room_number;
+    *(mydata + i * 7 + 1) = dev_unique_id;
+    *(mydata + i * 7 + 2) = room_number;
 
   }
   return (n);
 }
 
 int do_gps_scan() {
-   
-   
-   return 0;
+
+  bool newData = false;
+  unsigned long chars;
+  unsigned short sentences, failed;
+  float flat, flon, faltitudeGPS, fhdopGPS;
+  unsigned long age;
+  
+  uint8_t * macptr;
+  Serial.println("Getting GPS position...");
+/*
+  // For one second we parse GPS data and report some key values
+  for (unsigned long start = millis(); millis() - start < 1000;) {
+    while (Serial1.available()) {
+      char c = Serial1.read();
+      Serial.write(c); // uncomment this line if you want to see the GPS data flowing
+      if (gps.encode(c)) { // Did a new valid sentence come in?
+        newData = true;
+      }
+    }
+  }
+  
+  if ( newData ) {
+    gps.f_get_position(&flat, &flon, &age);
+    faltitudeGPS = gps.f_altitude();
+    fhdopGPS = gps.hdop();
+    flat = (flat == TinyGPS::GPS_INVALID_F_ANGLE ) ? 0.0 : flat;
+    flon = (flon == TinyGPS::GPS_INVALID_F_ANGLE ) ? 0.0 : flon;
+  }
+  
+  gps.stats(&chars, &sentences, &failed);
+*/
+
+  flat = 48.113980;
+  flon = 9.803513;
+
+  //flat = 40.7127;
+  //flon = -74.0059;
+
+  int32_t lat = flat * 10000;
+  int32_t lon = flon * 10000;
+  //int16_t altitudeGPS = faltitudeGPS * 100;
+  //int8_t hdopGPS = fhdopGPS; 
+  
+  // Pad 2 int32_t to 6 8uint_t, big endian (24 bit each, having 11 meter precision)
+  uint8_t coords[6];
+  
+  coords[0] = lat;
+  coords[1] = lat >> 8;
+  coords[2] = lat >> 16;
+  
+  coords[3] = lon;
+  coords[4] = lon >> 8;
+  coords[5] = lon >> 16;
+
+  //coords[6] = altitudeGPS;
+  //coords[7] = altitudeGPS >> 8;
+  
+  //coords[8] = hdopGPS;
+
+  memset(mydata, 0, sizeof(mydata));
+  mydata[0] = mode;
+  
+  Serial.println(lat);
+  Serial.println(lon);
+  Serial.println("GPS coords:");
+  for ( int j=0; j<6; j++){
+    
+    Serial.print(coords[j]);
+    mydata[j+1] = coords[j];
+    
+  }
+  mydata[7] = dev_unique_id;
+  mydata[8] = room_number;
+  
+  Serial.println();
+  
+/*
+
+        mydata[6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
+  */
+  return 1;
 }
 
 
