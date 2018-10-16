@@ -1,7 +1,7 @@
 #include <Arduino.h>
-
+#define CFG_sx1276_radio 1
 // OLED
-#define LCD_DISP
+//#define LCD_DISP
 #ifdef LCD_DISP
 #include <U8x8lib.h>
 #endif
@@ -27,9 +27,18 @@
 #define LoRa_RST  14  // GPIO 14
 #define LoRa_CS   18  // GPIO 18
 #define LoRa_DIO0 26  // GPIO 26
+
+#define HELTECV1
+#ifdef HELTECV1
 #define LoRa_DIO1 33  // GPIO 33
 #define LoRa_DIO2 32  // GPIO 32
+#endif
 
+//#define HELTECV2
+#ifdef HELTECV2
+#define LoRa_DIO1 34  // GPIO 33
+#define LoRa_DIO2 35  // GPIO 32
+#endif
 // define the display type that we use
 #ifdef LCD_DISP
 static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST);
@@ -40,26 +49,25 @@ TinyGPS gps;
 RTC_DATA_ATTR boolean send_always = true;
 RTC_DATA_ATTR byte sf = 7;
 RTC_DATA_ATTR int seqno_up = 0;
-RTC_DATA_ATTR byte dev_unique_id = 0x01;
-RTC_DATA_ATTR byte room_number = 0x77;
+RTC_DATA_ATTR boolean first_run = true;
 
 #ifdef TTGO_BUG
 RTC_DATA_ATTR boolean in_sleep = false;
-RTC_DATA_ATTR boolean wake_cnt = 0;
+RTC_DATA_ATTR int wake_cnt = 0;
 #endif
 
 #define LORA_MSG_PORT 66
-
+#define NO_STARTUP_BLINKS 5
+#define STARTUP_BLINK_PERIOD  300
 #define SLEEP_MODE
 
 //#define bibernode2
 #ifdef bibernode2
 static const u1_t NWKSKEY[16] = { 0xA2, 0x90, 0xE6, 0x58, 0xD0, 0x5A, 0x1E, 0x1B, 0x99, 0x84, 0x6C, 0xD0, 0xD1, 0x97, 0xFD, 0x1C };
-
 static const u1_t APPSKEY[16] = { 0x85, 0xB1, 0x18, 0x2A, 0xA1, 0x90, 0x82, 0xD4, 0xD5, 0xDA, 0x3F, 0x48, 0xF3, 0x6C, 0xCF, 0x56 };
-
 static const u4_t DEVADDR = 0x260115AE;
 #endif
+
 #define BIBERNODE1
 #ifdef BIBERNODE1
 static const PROGMEM u1_t NWKSKEY[16] = { 0x2D, 0x89, 0xF5, 0x50, 0x64, 0x06, 0x3B, 0xA3, 0x67, 0xB8, 0x71, 0x80, 0x63, 0x6C, 0xB2, 0xA1 };
@@ -74,7 +82,15 @@ void os_getArtEui (u1_t* buf) { }
 void os_getDevEui (u1_t* buf) { }
 void os_getDevKey (u1_t* buf) { }
 
+#ifdef BIBERNODE1
+RTC_DATA_ATTR byte dev_unique_id = 0x20;
+#endif
 
+#ifdef BIBERNODE2
+RTC_DATA_ATTR byte dev_unique_id = 0x21;
+#endif
+
+RTC_DATA_ATTR byte room_number = 0x00;
 
 #define MAX_MAC 2 // number of MAC addresses to sent
 static char mydata[1 + MAX_MAC * 7 + MAX_MAC] ; //*Space for Mode + (2 MACs + 2 RSSI9 + Unique ID + Room ID
@@ -156,6 +172,8 @@ void set_led (byte led_stat)
 
 void set_lcd (byte lcd_stat)
 {
+
+#ifdef  LCD_DISP
   Serial.print("LCD set to: ");
   Serial.println(lcd_stat);
   show_lcd_msg = lcd_stat;
@@ -177,6 +195,7 @@ void set_lcd (byte lcd_stat)
       u8x8.drawString(0, 5, "Ready");
     */
   }
+#endif
 }
 
 void  set_transmit_SF(byte strength)
@@ -302,7 +321,7 @@ void onEvent(ev_t ev) {
         }
         Serial.println();
 
-        // on/off cmds should be coded bitwise in just one byte not by using a complete array  !!!! 
+        // on/off cmds should be coded bitwise in just one byte not by using a complete array  !!!!
         // future release
         switch (LMIC.dataLen)
         {
@@ -375,7 +394,8 @@ void onEvent(ev_t ev) {
             set_room_number(LMIC.frame[LMIC.dataBeg + 7]);
 
             // 00 00 00 07 0A 00 0A 40 : led_off, no lcd, wifi, sf7, 10 minutes sleep, not all send, uid=10, room=64
-            break;
+           // 00 00 01 07 01 00 0A 40 : led_off, no_lcd, BLE, sf7, 1 minute sleep, not all send, uid 01, room=64
+             break;
 
         }
 
@@ -425,7 +445,7 @@ void do_send(osjob_t* j) {
 
     int l = 0;
     int initial_mode = mode;
-    
+
     if ( mode == BLE_POS )
     {
 #ifdef LCD_DISP
@@ -441,7 +461,7 @@ void do_send(osjob_t* j) {
         mode = WIFI_POS;
       }
     }
-    
+
     if ( mode == WIFI_POS )
     {
 #ifdef LCD_DISP
@@ -455,7 +475,7 @@ void do_send(osjob_t* j) {
       if ( l == 0 )
       {
         mode = GPS_POS;
-      }      
+      }
     }
 
     if ( mode == GPS_POS )
@@ -466,11 +486,11 @@ void do_send(osjob_t* j) {
         u8x8.drawString(0, 3, "Scan GPS");
       }
 #endif
-      l = do_gps_scan();      
+      l = do_gps_scan();
     }
 
     mode = initial_mode;
-    
+
     if (l > 0)
     {
 
@@ -520,7 +540,7 @@ int do_ble_scanAndsort()
   int n = foundDevices.getCount();
   int real_devs = 0;
   int act_cnt = 0;
-      
+
   Serial.println("list of bles");
   for (int i = 0; i < n; i++)
   {
@@ -700,7 +720,7 @@ int do_gps_scan() {
   unsigned short sentences, failed;
   float flat, flon, faltitudeGPS, fhdopGPS;
   unsigned long age;
-  
+
   uint8_t * macptr;
   Serial.println("Getting GPS position...");
 
@@ -714,7 +734,7 @@ int do_gps_scan() {
       }
     }
   }
-  
+
   if ( newData ) {
     gps.f_get_position(&flat, &flon, &age);
     faltitudeGPS = gps.f_altitude();
@@ -722,7 +742,7 @@ int do_gps_scan() {
     flat = (flat == TinyGPS::GPS_INVALID_F_ANGLE ) ? 0.0 : flat;
     flon = (flon == TinyGPS::GPS_INVALID_F_ANGLE ) ? 0.0 : flon;
   }
-  
+
   gps.stats(&chars, &sentences, &failed);
 
   //flat = 48.113980;
@@ -731,42 +751,50 @@ int do_gps_scan() {
   int32_t lat = flat * 10000;
   int32_t lon = flon * 10000;
   //int16_t altitudeGPS = faltitudeGPS * 100;
-  //int8_t hdopGPS = fhdopGPS; 
-  
+  //int8_t hdopGPS = fhdopGPS;
+
   // Pad 2 int32_t to 6 8uint_t, big endian (24 bit each, having 11 meter precision)
   uint8_t coords[6];
-  
+
   coords[0] = lat;
   coords[1] = lat >> 8;
   coords[2] = lat >> 16;
-  
+
   coords[3] = lon;
   coords[4] = lon >> 8;
   coords[5] = lon >> 16;
 
   //coords[6] = altitudeGPS;
   //coords[7] = altitudeGPS >> 8;
-  
+
   //coords[8] = hdopGPS;
 
   memset(mydata, 0, sizeof(mydata));
   mydata[0] = mode;
-  
+
   Serial.println(lat);
   Serial.println(lon);
   Serial.println("GPS coords:");
-  for ( int j=0; j<6; j++){
-    
+  for ( int j = 0; j < 6; j++) {
+
     Serial.print(coords[j]);
-    mydata[j+1] = coords[j];
-    
+    mydata[j + 1] = coords[j];
+
   }
   mydata[7] = dev_unique_id;
   mydata[8] = room_number;
-  
+
   Serial.println();
-  
+
   return 1;
+}
+
+void do_blink()
+{
+  digitalWrite (LED_PIN, LED_ON);
+  delay (STARTUP_BLINK_PERIOD);
+  digitalWrite (LED_PIN, LED_OFF);
+  delay (STARTUP_BLINK_PERIOD);
 }
 
 
@@ -776,6 +804,24 @@ void setup() {
 
 
   Serial.begin(115200);
+  delay(1000); //Take some time to open up the Serial Monitor
+  Serial.println(F("Starting"));
+  pinMode(LED_PIN, OUTPUT);
+
+  // Added 16.10.2018 ML
+  Serial1.begin(9600, SERIAL_8N1, 12, 15);
+
+  if (first_run)
+  {
+    first_run = false;
+
+    for (int blink = 0; blink < NO_STARTUP_BLINKS; blink ++)
+      do_blink();
+
+  }
+
+
+
   delay(1000); //Take some time to open up the Serial Monitor
   Serial.println(F("Starting"));
   pinMode(LED_PIN, OUTPUT);
