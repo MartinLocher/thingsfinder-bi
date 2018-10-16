@@ -16,6 +16,8 @@
 #include <SPI.h>
 
 #include <WiFi.h>
+#include <TinyGPS.h>
+
 // OLED Pins
 #define OLED_SCL 15   // GPIO 15h
 #define OLED_SDA  4   // GPIO  4
@@ -32,6 +34,8 @@
 #ifdef LCD_DISP
 static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST);
 #endif
+
+TinyGPS gps;
 
 RTC_DATA_ATTR boolean send_always = true;
 RTC_DATA_ATTR byte sf = 7;
@@ -699,7 +703,7 @@ int do_gps_scan() {
   
   uint8_t * macptr;
   Serial.println("Getting GPS position...");
-/*
+
   // For one second we parse GPS data and report some key values
   for (unsigned long start = millis(); millis() - start < 1000;) {
     while (Serial1.available()) {
@@ -720,13 +724,9 @@ int do_gps_scan() {
   }
   
   gps.stats(&chars, &sentences, &failed);
-*/
 
-  flat = 48.113980;
-  flon = 9.803513;
-
-  //flat = 40.7127;
-  //flon = -74.0059;
+  //flat = 48.113980;
+  //flon = 9.803513;
 
   int32_t lat = flat * 10000;
   int32_t lon = flon * 10000;
@@ -766,10 +766,6 @@ int do_gps_scan() {
   
   Serial.println();
   
-/*
-
-        mydata[6 + 7 * act_cnt] = foundDevices.getDevice(indices[i]).getRSSI();
-  */
   return 1;
 }
 
