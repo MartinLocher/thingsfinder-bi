@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #define CFG_sx1276_radio 1
 // OLED
-//#define LCD_DISP
+#define LCD_DISP
 #ifdef LCD_DISP
 #include <U8x8lib.h>
 #endif
@@ -28,7 +28,7 @@
 #define LoRa_CS   18  // GPIO 18
 #define LoRa_DIO0 26  // GPIO 26
 
-#define HELTECV1
+#define HELTECV1 & TTBEAM
 #ifdef HELTECV1
 #define LoRa_DIO1 33  // GPIO 33
 #define LoRa_DIO2 32  // GPIO 32
@@ -47,7 +47,7 @@ static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ O
 TinyGPS gps;
 
 RTC_DATA_ATTR boolean send_always = true;
-RTC_DATA_ATTR byte sf = 7;
+RTC_DATA_ATTR byte sf = 10;
 RTC_DATA_ATTR int seqno_up = 0;
 RTC_DATA_ATTR boolean first_run = true;
 
@@ -61,18 +61,33 @@ RTC_DATA_ATTR int wake_cnt = 0;
 #define STARTUP_BLINK_PERIOD  300
 #define SLEEP_MODE
 
-#define BIBERNODE2
+//#define BIBERNODE1
+#ifdef BIBERNODE1
+static const PROGMEM u1_t NWKSKEY[16] = { 0x2D, 0x89, 0xF5, 0x50, 0x64, 0x06, 0x3B, 0xA3, 0x67, 0xB8, 0x71, 0x80, 0x63, 0x6C, 0xB2, 0xA1 };
+static const u1_t PROGMEM APPSKEY[16] = { 0x73, 0x8A, 0xD7, 0xD0, 0x17, 0x67, 0x5D, 0xF2, 0xC2, 0x11, 0xC4, 0x71, 0x3A, 0x97, 0x4D, 0x7E };
+static const u4_t DEVADDR = 0x260118EC ;
+#endif
+
+
+//#define BIBERNODE2
 #ifdef BIBERNODE2
 static const u1_t NWKSKEY[16] = { 0xA2, 0x90, 0xE6, 0x58, 0xD0, 0x5A, 0x1E, 0x1B, 0x99, 0x84, 0x6C, 0xD0, 0xD1, 0x97, 0xFD, 0x1C };
 static const u1_t APPSKEY[16] = { 0x85, 0xB1, 0x18, 0x2A, 0xA1, 0x90, 0x82, 0xD4, 0xD5, 0xDA, 0x3F, 0x48, 0xF3, 0x6C, 0xCF, 0x56 };
 static const u4_t DEVADDR = 0x260115AE;
 #endif
 
-//#define BIBERNODE1
-#ifdef BIBERNODE1
-static const PROGMEM u1_t NWKSKEY[16] = { 0x2D, 0x89, 0xF5, 0x50, 0x64, 0x06, 0x3B, 0xA3, 0x67, 0xB8, 0x71, 0x80, 0x63, 0x6C, 0xB2, 0xA1 };
-static const u1_t PROGMEM APPSKEY[16] = { 0x73, 0x8A, 0xD7, 0xD0, 0x17, 0x67, 0x5D, 0xF2, 0xC2, 0x11, 0xC4, 0x71, 0x3A, 0x97, 0x4D, 0x7E };
-static const u4_t DEVADDR = 0x260118EC ;
+//#define BIBERNODE3
+#ifdef BIBERNODE3
+static const u1_t NWKSKEY[16] = { 0xBC, 0xCC, 0xDC, 0xB1, 0x65, 0x7A, 0x04, 0x90, 0x44, 0x42, 0x14, 0x6D, 0x47, 0xA1, 0xE5, 0xB6 };
+static const u1_t APPSKEY[16] = { 0x56, 0x44, 0x94, 0xDC, 0x86, 0xEB, 0xB9, 0xF9, 0x2C, 0xF5, 0x69, 0xF3, 0x42, 0xA9, 0x5B, 0x13 };
+static const u4_t DEVADDR = 0x26011F73;
+#endif
+
+#define BIBERNODE4
+#ifdef BIBERNODE4
+static const u1_t NWKSKEY[16] = { 0x3B, 0xD4, 0xF6, 0xC7, 0x2D, 0x09, 0xBD, 0x5C, 0x4C, 0xAE, 0x79, 0x23, 0x01, 0x47, 0x21, 0xDB };
+static const u1_t APPSKEY[16] = { 0x51, 0x5C, 0xB8, 0xE4, 0x75, 0x2D, 0x55, 0xC2, 0xF4, 0x93, 0x84, 0xDA, 0x86, 0x98, 0xEB, 0xF1 };
+static const u4_t DEVADDR = 0x26011CE4;
 #endif
 
 // These callbacks are only used in over-the-air activation, so they are
@@ -89,6 +104,14 @@ RTC_DATA_ATTR byte dev_unique_id = 0x20;
 
 #ifdef BIBERNODE2
 RTC_DATA_ATTR byte dev_unique_id = 0x21;
+#endif
+
+#ifdef BIBERNODE3
+RTC_DATA_ATTR byte dev_unique_id = 0x22;
+#endif
+
+#ifdef BIBERNODE4
+RTC_DATA_ATTR byte dev_unique_id = 0x23;
 #endif
 
 RTC_DATA_ATTR byte room_number = 0x00;
@@ -395,8 +418,14 @@ void onEvent(ev_t ev) {
             set_room_number(LMIC.frame[LMIC.dataBeg + 7]);
 
             // 00 00 00 07 0A 00 0A 40 : led_off, no lcd, wifi, sf7, 10 minutes sleep, not all send, uid=10, room=64
-           // 00 00 01 07 01 00 0A 40 : led_off, no_lcd, BLE, sf7, 1 minute sleep, not all send, uid 01, room=64
-             break;
+            // 00 00 01 07 01 00 0A 40 : led_off, no_lcd, BLE, sf7, 1 minute sleep, not all send, uid 01, room=64
+            /*
+              00 00 01 07 00 00 0A 00 (SF7), LED OFF, no sleep
+              00 00 01 0A 00 00 0A 00 (SF10) LED OFF, no sleep
+              01 00 01 0A 00 00 0A 00 (SF10) LED ON, no sleep
+              01 00 01 0A 0A 00 0A 00 LED ON, LCD OFF, BLE MODE, SF, Sleeptime 0, UniqueID, Room                                     
+            */
+            break;
 
         }
 
