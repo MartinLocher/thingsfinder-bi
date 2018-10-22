@@ -30,58 +30,67 @@ function Decoder(bytes)
 }
  if (port == 66)
 {
-	var unique_id;
-  var room_number;
-	var mode = bytes[0];
-
+	var unique_id = hexToInt(bytes[0]);
+	var mode = bytes[1];
+  var room_number = hexToInt(bytes[2]);
+	
   if (mode < 2)
   {
     var mac1 = "";
-  	for (i = 1; i < 7; i++)
+  	for (i = 4; i < 10; i++)
   	{
   		mac1 += byteToHex(bytes[i]);
-  		if (i < 6)
+  		if (i < 9)
   		{
   			mac1 += ':';
   		}
   	}
   
-  	var rssi1 = hexToInt(bytes[7]);
+  	var rssi1 = hexToInt(bytes[10]);
   	var mac2 = "";
 
-		for (i = 1; i < 7; i++)
+		for (i = 4; i < 10; i++)
 		{
 			mac2 += byteToHex(bytes[i +  7]);
-  
-			if (i < 6)
+			if (i < 9)
 			{
 			  mac2 += ':';
   		}
   	}
   
-  	var rssi2 = hexToInt(bytes[14]);		
-  	unique_id = hexToInt(bytes[15]);
-  	room_number = hexToInt(bytes[16]);
+  	var rssi2 = hexToInt(bytes[17]);
+  	var mac3 = "";
+
+		for (i = 4; i < 10; i++)
+		{
+			mac3 += byteToHex(bytes[i +  14]);
+			if (i < 9)
+			{
+			  mac3 += ':';
+  		}
+  	}
+  	
+  	var rssi3 = hexToInt(bytes[24]);		
   }
   else {
-    var lat = (bytes[1] | bytes[2]<<8 | bytes[3]<<16 | (bytes[3] & 0x80 ? 0xFF<<24 : 0)) / 10000;
-    var lng = (bytes[4] | bytes[5]<<8 | bytes[6]<<16 | (bytes[6] & 0x80 ? 0xFF<<24 : 0)) / 10000;
-    unique_id = hexToInt(bytes[7]);
-    room_number = hexToInt(bytes[8]);
+    var lat = (bytes[4] | bytes[5]<<8 | bytes[6]<<16 | (bytes[6] & 0x80 ? 0xFF<<24 : 0)) / 10000;
+    var lng = (bytes[7] | bytes[8]<<8 | bytes[9]<<16 | (bytes[9] & 0x80 ? 0xFF<<24 : 0)) / 10000;
   }
 
 	return {
 		macaddress:
 		{
+		  device_id: unique_id,
 		  mode: mode,
+			room: room_number,
 			mac_1: mac1,
 			rssi_1: rssi1,
 			mac_2: mac2,
+			mac_3: mac3,
 			rssi_2: rssi2,
+			rssi_3: rssi3,
 			latitude: lat,
 		  longitude: lng,
-			device_id: unique_id,
-			room: room_number
 		},
 	};
 }
