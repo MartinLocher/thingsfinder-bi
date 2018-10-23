@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#define CFG_sx1276_radio 1
 
 // OLED
 #define LCD_DISP
@@ -27,9 +28,17 @@
 #define LoRa_RST  14  // GPIO 14
 #define LoRa_CS   18  // GPIO 18
 #define LoRa_DIO0 26  // GPIO 26
+#define HELTECV1 & TTBEAM
+#ifdef HELTECV1
 #define LoRa_DIO1 33  // GPIO 33
 #define LoRa_DIO2 32  // GPIO 32
+#endif
 
+//#define HELTECV2
+#ifdef HELTECV2
+#define LoRa_DIO1 34  // GPIO 33
+#define LoRa_DIO2 35  // GPIO 32
+#endif
 // define the display type that we use
 #ifdef LCD_DISP
 static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST);
@@ -40,33 +49,46 @@ TinyGPS gps;
 RTC_DATA_ATTR boolean send_always = true;
 RTC_DATA_ATTR byte sf = 7;
 RTC_DATA_ATTR int seqno_up = 0;
-RTC_DATA_ATTR byte dev_unique_id = 0x01;
-RTC_DATA_ATTR byte room_number = 0x77;
+RTC_DATA_ATTR boolean first_run = true;
 
 #ifdef TTGO_BUG
 RTC_DATA_ATTR boolean in_sleep = false;
-RTC_DATA_ATTR boolean wake_cnt = 0;
+RTC_DATA_ATTR int wake_cnt = 0;
 #endif
 
 #define LORA_MSG_PORT 66
+#define NO_STARTUP_BLINKS 5
+#define STARTUP_BLINK_PERIOD  300
 
 #define SLEEP_MODE
 
-//#define bibernode2
-#ifdef bibernode2
-static const u1_t NWKSKEY[16] = { 0xA2, 0x90, 0xE6, 0x58, 0xD0, 0x5A, 0x1E, 0x1B, 0x99, 0x84, 0x6C, 0xD0, 0xD1, 0x97, 0xFD, 0x1C };
-static const u1_t APPSKEY[16] = { 0x85, 0xB1, 0x18, 0x2A, 0xA1, 0x90, 0x82, 0xD4, 0xD5, 0xDA, 0x3F, 0x48, 0xF3, 0x6C, 0xCF, 0x56 };
-static const u4_t DEVADDR = 0x260115AE;
-#endif
-#define BIBERNODE1
+//#define BIBERNODE1
 #ifdef BIBERNODE1
 static const PROGMEM u1_t NWKSKEY[16] = { 0x2D, 0x89, 0xF5, 0x50, 0x64, 0x06, 0x3B, 0xA3, 0x67, 0xB8, 0x71, 0x80, 0x63, 0x6C, 0xB2, 0xA1 };
 static const u1_t PROGMEM APPSKEY[16] = { 0x73, 0x8A, 0xD7, 0xD0, 0x17, 0x67, 0x5D, 0xF2, 0xC2, 0x11, 0xC4, 0x71, 0x3A, 0x97, 0x4D, 0x7E };
 static const u4_t DEVADDR = 0x260118EC ;
 #endif
+
+
+//#define BIBERNODE2
+#ifdef BIBERNODE2
+static const u1_t NWKSKEY[16] = { 0xA2, 0x90, 0xE6, 0x58, 0xD0, 0x5A, 0x1E, 0x1B, 0x99, 0x84, 0x6C, 0xD0, 0xD1, 0x97, 0xFD, 0x1C };
+static const u1_t APPSKEY[16] = { 0x85, 0xB1, 0x18, 0x2A, 0xA1, 0x90, 0x82, 0xD4, 0xD5, 0xDA, 0x3F, 0x48, 0xF3, 0x6C, 0xCF, 0x56 };
+static const u4_t DEVADDR = 0x260115AE;
+#endif
+
 //#define BIBERNODE3
 #ifdef BIBERNODE3
+static const u1_t NWKSKEY[16] = { 0xBC, 0xCC, 0xDC, 0xB1, 0x65, 0x7A, 0x04, 0x90, 0x44, 0x42, 0x14, 0x6D, 0x47, 0xA1, 0xE5, 0xB6 };
+static const u1_t APPSKEY[16] = { 0x56, 0x44, 0x94, 0xDC, 0x86, 0xEB, 0xB9, 0xF9, 0x2C, 0xF5, 0x69, 0xF3, 0x42, 0xA9, 0x5B, 0x13 };
+static const u4_t DEVADDR = 0x26011F73;
+#endif
 
+#define BIBERNODE4
+#ifdef BIBERNODE4
+static const u1_t NWKSKEY[16] = { 0x3B, 0xD4, 0xF6, 0xC7, 0x2D, 0x09, 0xBD, 0x5C, 0x4C, 0xAE, 0x79, 0x23, 0x01, 0x47, 0x21, 0xDB };
+static const u1_t APPSKEY[16] = { 0x51, 0x5C, 0xB8, 0xE4, 0x75, 0x2D, 0x55, 0xC2, 0xF4, 0x93, 0x84, 0xDA, 0x86, 0x98, 0xEB, 0xF1 };
+static const u4_t DEVADDR = 0x26011CE4;
 #endif
 
 // These callbacks are only used in over-the-air activation, so they are
@@ -76,7 +98,24 @@ void os_getArtEui (u1_t* buf) { }
 void os_getDevEui (u1_t* buf) { }
 void os_getDevKey (u1_t* buf) { }
 
+#ifdef BIBERNODE1
+RTC_DATA_ATTR byte dev_unique_id = 0x20;
+#endif
 
+
+#ifdef BIBERNODE2
+RTC_DATA_ATTR byte dev_unique_id = 0x21;
+#endif
+
+#ifdef BIBERNODE3
+RTC_DATA_ATTR byte dev_unique_id = 0x22;
+#endif
+
+#ifdef BIBERNODE4
+RTC_DATA_ATTR byte dev_unique_id = 0x23;
+#endif
+
+RTC_DATA_ATTR byte room_number = 0x00;
 #define MAX_MAC 2 // number of MAC addresses to sent
 //static char mydata[1 + MAX_MAC * 7 + MAX_MAC] ; //*Space for Mode + (2 MACs + 2 RSSI9 + Unique ID + Room ID
 static char mydata[4 + 7 * MAX_MAC]; // Space for:  UniqueID + Mode + Room ID + SendAllways +  7 * MAX_MAC
@@ -120,7 +159,7 @@ const int scanTime = 30;
 #define BLE_POS  WIFI_POS + 1
 #define GPS_POS  BLE_POS + 1
 
-RTC_DATA_ATTR int mode = GPS_POS;
+RTC_DATA_ATTR int mode = BLE_POS;
 
 #define LCD_OFF  0
 #define LCD_ON  LCD_OFF + 1
@@ -151,6 +190,7 @@ void set_led (byte led_stat)
 
 void set_lcd (byte lcd_stat)
 {
+#ifdef  LCD_DISP
   Serial.print("LCD set to: ");
   Serial.println(lcd_stat);
   show_lcd_msg = lcd_stat;
@@ -172,6 +212,7 @@ void set_lcd (byte lcd_stat)
       u8x8.drawString(0, 5, "Ready");
     */
   }
+#endif
 }
 
 void  set_transmit_SF(byte strength)
@@ -367,7 +408,15 @@ void onEvent(ev_t ev) {
             set_unique_id(LMIC.frame[LMIC.dataBeg + 6]);
             set_room_number(LMIC.frame[LMIC.dataBeg + 7]);
 
+
             // 00 00 00 07 0A 00 0A 40 : led_off, no lcd, wifi, sf7, 10 minutes sleep, not all send, uid=10, room=64
+            // 00 00 01 07 01 00 0A 40 : led_off, no_lcd, BLE, sf7, 1 minute sleep, not all send, uid 01, room=64
+            /*
+              00 00 01 07 00 00 0A 00 (SF7), LED OFF, no sleep
+              00 00 01 0A 00 00 0A 00 (SF10) LED OFF, no sleep
+              01 00 01 0A 00 00 0A 00 (SF10) LED ON, no sleep
+              01 00 01 0A 0A 00 0A 00 LED ON, LCD OFF, BLE MODE, SF, Sleeptime 0, UniqueID, Room                                     
+            */
             break;
 
         }
@@ -728,8 +777,8 @@ int do_gps_scan() {
   
   gps.stats(&chars, &sentences, &failed);
 
-  flat = 48.113980;
-  flon = 9.803513;
+  //flat = 48.113980;
+  //flon = 9.803513;
 
   int32_t lat = flat * 10000;
   int32_t lon = flon * 10000;
@@ -778,13 +827,36 @@ int do_gps_scan() {
   return 1;
 }
 
-
+void do_blink()
+{
+  digitalWrite (LED_PIN, LED_ON);
+  delay (STARTUP_BLINK_PERIOD);
+  digitalWrite (LED_PIN, LED_OFF);
+  delay (STARTUP_BLINK_PERIOD);
+}
 void setup() {
   // init packet counter
   //sprintf(mydata, "Packet = %5u", packetNumber);
 
 
   Serial.begin(115200);
+  delay(1000); //Take some time to open up the Serial Monitor
+  Serial.println(F("Starting"));
+  pinMode(LED_PIN, OUTPUT);
+  // Added 16.10.2018 ML
+  Serial1.begin(9600, SERIAL_8N1, 12, 15);
+
+  if (first_run)
+  {
+    first_run = false;
+
+    for (int blink = 0; blink < NO_STARTUP_BLINKS; blink ++)
+      do_blink();
+
+  }
+
+  
+  
   delay(1000); //Take some time to open up the Serial Monitor
   Serial.println(F("Starting"));
   pinMode(LED_PIN, OUTPUT);
