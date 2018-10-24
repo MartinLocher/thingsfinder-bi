@@ -28,7 +28,9 @@
 #define LoRa_RST  14  // GPIO 14
 #define LoRa_CS   18  // GPIO 18
 #define LoRa_DIO0 26  // GPIO 26
-#define HELTECV1 & TTBEAM
+
+//HELTECV1 & TTBEAM
+#define HELTECV1
 #ifdef HELTECV1
 #define LoRa_DIO1 33  // GPIO 33
 #define LoRa_DIO2 32  // GPIO 32
@@ -47,7 +49,7 @@ static U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ O
 TinyGPS gps;
 
 RTC_DATA_ATTR boolean send_always = true;
-RTC_DATA_ATTR byte sf = 7;
+RTC_DATA_ATTR byte sf = 10;
 RTC_DATA_ATTR int seqno_up = 0;
 RTC_DATA_ATTR boolean first_run = true;
 
@@ -84,11 +86,18 @@ static const u1_t APPSKEY[16] = { 0x56, 0x44, 0x94, 0xDC, 0x86, 0xEB, 0xB9, 0xF9
 static const u4_t DEVADDR = 0x26011F73;
 #endif
 
-#define BIBERNODE4
+//#define BIBERNODE4
 #ifdef BIBERNODE4
 static const u1_t NWKSKEY[16] = { 0x3B, 0xD4, 0xF6, 0xC7, 0x2D, 0x09, 0xBD, 0x5C, 0x4C, 0xAE, 0x79, 0x23, 0x01, 0x47, 0x21, 0xDB };
 static const u1_t APPSKEY[16] = { 0x51, 0x5C, 0xB8, 0xE4, 0x75, 0x2D, 0x55, 0xC2, 0xF4, 0x93, 0x84, 0xDA, 0x86, 0x98, 0xEB, 0xF1 };
 static const u4_t DEVADDR = 0x26011CE4;
+#endif
+
+#define BIBERNODE5
+#ifdef BIBERNODE5
+static const u1_t NWKSKEY[16] = { 0x12, 0x68, 0x5D, 0x96, 0xDC, 0x5A, 0xA0, 0xAD, 0xEA, 0x81, 0x95, 0xFE, 0x12, 0x1F, 0xC0, 0xA0 };
+static const u1_t APPSKEY[16] = { 0x61, 0x77, 0xFF, 0x09, 0xAF, 0xA2, 0x98, 0x89, 0x6A, 0xFD, 0xD7, 0x0C, 0xC2, 0x55, 0x39, 0xDC };
+static const u4_t DEVADDR = 0x260116F0;
 #endif
 
 // These callbacks are only used in over-the-air activation, so they are
@@ -113,6 +122,10 @@ RTC_DATA_ATTR byte dev_unique_id = 0x22;
 
 #ifdef BIBERNODE4
 RTC_DATA_ATTR byte dev_unique_id = 0x23;
+#endif
+
+#ifdef BIBERNODE5
+RTC_DATA_ATTR byte dev_unique_id = 0x24;
 #endif
 
 RTC_DATA_ATTR byte room_number = 0x00;
@@ -858,7 +871,7 @@ void setup() {
   
   
   delay(1000); //Take some time to open up the Serial Monitor
-  Serial.println(F("Starting"));
+ 
   pinMode(LED_PIN, OUTPUT);
   digitalWrite (LED_PIN, LED_STATE);
 #ifdef TTGO_BUG
